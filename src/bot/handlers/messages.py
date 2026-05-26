@@ -133,19 +133,22 @@ async def _handle_file_upload(update, context, c: Container, user) -> None:
             tg_message=update.message,
             folder_id=upload_session.folder_id if upload_session else None,
         )
-        # Batch uploads — collect files and send one summary after 2s of silence
-        batch = context.user_data.setdefault("upload_batch", [])
+        # Batch by media_group_id if present, otherwise treat as single
+        group_id = getattr(update.message, "media_group_id", None) or f"single_{update.message.message_id}"
+        batch_key = f"upload_batch_{group_id}"
+        task_key = f"upload_task_{group_id}"
+
+        batch = context.user_data.setdefault(batch_key, [])
         batch.append(file)
 
-        # Cancel previous pending summary task
-        prev_task = context.user_data.pop("upload_batch_task", None)
+        prev_task = context.user_data.pop(task_key, None)
         if prev_task:
             prev_task.cancel()
 
-        async def _send_summary():
-            await asyncio.sleep(2)
-            files = context.user_data.pop("upload_batch", [])
-            context.user_data.pop("upload_batch_task", None)
+        async def _send_summary(bk=batch_key, tk=task_key):
+            await asyncio.sleep(8)
+            files = context.user_data.pop(bk, [])
+            context.user_data.pop(tk, None)
             if not files:
                 return
             if len(files) == 1:
@@ -157,13 +160,13 @@ async def _handle_file_upload(update, context, c: Container, user) -> None:
             else:
                 lines = "\n".join(f"• {f.label}" for f in files)
                 await update.message.reply_text(
-                    f"✅ <b>{len(files)} files uploaded</b>\n\n{lines}",
+                    f"✅ <b>{len(files)} files uploaded successfully</b>\n\n{lines}",
                     parse_mode=ParseMode.HTML,
                     reply_markup=home_keyboard(),
                 )
 
         task = asyncio.create_task(_send_summary())
-        context.user_data["upload_batch_task"] = task
+        context.user_data[task_key] = task
 
     except AppError as e:
         await update.message.reply_text(fmt_error(e.user_message), parse_mode=ParseMode.HTML)
