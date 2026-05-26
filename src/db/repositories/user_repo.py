@@ -21,10 +21,11 @@ class UserRepository(BaseRepository[User]):
     ) -> tuple[User, bool]:
         user = await self.get_by_telegram_id(telegram_user_id)
         if user:
-            # Update mutable fields
+            # Update mutable fields and sync admin status from settings
             user.first_name = first_name
             user.username = username
             user.last_name = last_name
+            user.is_admin = is_admin
             await self.session.flush()
             return user, False
 
