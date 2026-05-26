@@ -29,14 +29,16 @@ async def lifespan(app: FastAPI):
     bot_app = create_bot_app()
     await bot_app.initialize()
 
-    # Verify vault channel access
+    # Verify vault channel access (optional — users have per-user vaults)
     storage = StorageService(bot_app.bot)
-    vault_ok = await storage.verify_vault_access()
-    if not vault_ok:
-        logger.error(
-            "VAULT CHANNEL NOT ACCESSIBLE — bot must be admin in the vault channel. "
-            "File uploads will fail until this is resolved."
-        )
+    if storage._settings.vault_channel_id:
+        vault_ok = await storage.verify_vault_access()
+        if not vault_ok:
+            logger.warning(
+                "Global vault channel not accessible — per-user vaults will still work"
+            )
+    else:
+        logger.info("No global VAULT_CHANNEL_ID set — using per-user vault channels")
 
     # Register webhook with Telegram
     await setup_webhook(bot_app)
