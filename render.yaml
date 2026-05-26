@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: telegram-storage-bot
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_WEBHOOK_SECRET
+        sync: false
+      - key: VAULT_CHANNEL_ID
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: WEBHOOK_BASE_URL
+        sync: false
+      - key: ADMIN_USER_IDS
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEFAULT_UPLOAD_BEHAVIOR
+        value: ask
+      - key: UPLOAD_SESSION_TIMEOUT
+        value: "300"
+      - key: PAGE_SIZE
+        value: "8"
