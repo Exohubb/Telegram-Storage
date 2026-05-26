@@ -488,7 +488,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await _edit(update, fmt_setup_step2(), setup_step_keyboard(2))
             elif step == 3:
                 # Step 3: ask user to type the channel ID
-                from src.core.constants import UserState
                 await c.users.set_state(user.id, UserState.SETUP_WAITING_ID)
                 await _edit(update, fmt_setup_step3(), setup_step_keyboard(3))
 

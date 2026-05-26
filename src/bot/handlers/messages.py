@@ -3,6 +3,8 @@ Message handler: processes incoming file uploads and text input
 based on the user's current state.
 """
 
+import asyncio
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -131,11 +133,38 @@ async def _handle_file_upload(update, context, c: Container, user) -> None:
             tg_message=update.message,
             folder_id=upload_session.folder_id if upload_session else None,
         )
-        await update.message.reply_text(
-            fmt_upload_success(file),
-            parse_mode=ParseMode.HTML,
-            reply_markup=file_detail_keyboard(file),
-        )
+        # Batch uploads — collect files and send one summary after 2s of silence
+        batch = context.user_data.setdefault("upload_batch", [])
+        batch.append(file)
+
+        # Cancel previous pending summary task
+        prev_task = context.user_data.pop("upload_batch_task", None)
+        if prev_task:
+            prev_task.cancel()
+
+        async def _send_summary():
+            await asyncio.sleep(2)
+            files = context.user_data.pop("upload_batch", [])
+            context.user_data.pop("upload_batch_task", None)
+            if not files:
+                return
+            if len(files) == 1:
+                await update.message.reply_text(
+                    fmt_upload_success(files[0]),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=file_detail_keyboard(files[0]),
+                )
+            else:
+                lines = "\n".join(f"• {f.label}" for f in files)
+                await update.message.reply_text(
+                    f"✅ <b>{len(files)} files uploaded</b>\n\n{lines}",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=home_keyboard(),
+                )
+
+        task = asyncio.create_task(_send_summary())
+        context.user_data["upload_batch_task"] = task
+
     except AppError as e:
         await update.message.reply_text(fmt_error(e.user_message), parse_mode=ParseMode.HTML)
 
