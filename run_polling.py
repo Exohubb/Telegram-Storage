@@ -75,13 +75,16 @@ async def main() -> None:
     # Register bot command menu
     await app.bot.set_my_commands(BOT_COMMANDS)
 
-    # Verify vault channel
+    # Verify vault channel (skip if no global VAULT_CHANNEL_ID set)
     storage = StorageService(app.bot)
-    vault_ok = await storage.verify_vault_access()
-    if not vault_ok:
-        print("WARNING: Vault channel not accessible — set VAULT_CHANNEL_ID in .env")
+    if storage._settings.vault_channel_id:
+        vault_ok = await storage.verify_vault_access()
+        if not vault_ok:
+            print("WARNING: Vault channel not accessible — check VAULT_CHANNEL_ID in .env")
+        else:
+            print("Vault channel OK")
     else:
-        print("Vault channel OK")
+        print("No global VAULT_CHANNEL_ID — using per-user vault channels")
 
     print("Bot is running. Send /start in Telegram.")
 
