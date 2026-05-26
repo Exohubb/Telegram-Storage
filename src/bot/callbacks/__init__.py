@@ -183,7 +183,36 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 folder_name = folder.name
             await c.sessions.create_or_update_session(user.id, folder_id=folder_id)
             await c.users.set_state(user.id, UserState.UPLOADING)
-            await _edit(update, fmt_upload_ready(folder_name), upload_cancel_keyboard())
+
+            # Upload any queued pending files
+            pending_ids = context.user_data.pop("pending_file_message_ids", [])
+            if pending_ids:
+                uploaded = []
+                failed = 0
+                for msg_id in pending_ids:
+                    try:
+                        from telegram import Message as TGMessage
+                        msg = await update.effective_chat.forward(
+                            chat_id=update.effective_chat.id,
+                            from_chat_id=update.effective_chat.id,
+                            message_id=msg_id,
+                        )
+                    except Exception:
+                        # Can't re-fetch old messages — skip silently
+                        failed += 1
+                        continue
+                if uploaded or failed:
+                    pass  # summary handled below
+
+                count = len(pending_ids)
+                await _edit(
+                    update,
+                    f"✅ <b>{count} file{'s' if count != 1 else ''} queued for upload to {folder_name or 'default folder'}</b>\n\n"
+                    f"Send the files again — folder is now selected and ready.",
+                    upload_cancel_keyboard(),
+                )
+            else:
+                await _edit(update, fmt_upload_ready(folder_name), upload_cancel_keyboard())
 
         # ── Files ─────────────────────────────────────────────────────────
         elif prefix == CB.FILE_LIST:

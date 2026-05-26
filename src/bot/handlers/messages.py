@@ -106,7 +106,6 @@ async def _handle_file_upload(update, context, c: Container, user) -> None:
     upload_session = await c.sessions.get_active_session(user.id)
 
     if not upload_session:
-        # No active session — ask where to put it
         settings = get_settings()
         if settings.default_upload_behavior == "default":
             default_folder = await c.folders.get_default_folder(user.id)
@@ -114,17 +113,20 @@ async def _handle_file_upload(update, context, c: Container, user) -> None:
             folder_name = default_folder.name if default_folder else None
             await c.sessions.create_or_update_session(user.id, folder_id=folder_id)
             await c.users.set_state(user.id, UserState.UPLOADING)
-            # Proceed with upload immediately
             upload_session = await c.sessions.get_active_session(user.id)
         else:
-            folders, _ = await c.folders.get_user_folders(user.id)
-            await update.message.reply_text(
-                fmt_upload_choose_folder(),
-                parse_mode=ParseMode.HTML,
-                reply_markup=upload_folder_picker_keyboard(folders),
-            )
-            # Store the pending message for later processing
-            context.user_data["pending_file_message_id"] = update.message.message_id
+            # Queue this message — show folder picker only once
+            pending = context.user_data.setdefault("pending_file_message_ids", [])
+            pending.append(update.message.message_id)
+            if len(pending) == 1:
+                # First file — show the picker
+                folders, _ = await c.folders.get_user_folders(user.id)
+                await update.message.reply_text(
+                    fmt_upload_choose_folder(),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=upload_folder_picker_keyboard(folders),
+                )
+            # All subsequent files are queued silently
             return
 
     try:
